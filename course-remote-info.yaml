@@ -10,13 +10,13 @@ stages:
   is_completed: true
 - id: 477
   step: 7749
-  is_completed: false
+  is_completed: true
 - id: 478
   step: 7750
-  is_completed: false
+  is_completed: true
 - id: 479
   step: 7751
-  is_completed: false
+  is_completed: true
 topics:
   0:
   - title: Units of information

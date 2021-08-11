@@ -4,47 +4,121 @@ import java.io.File
 
 fun main() {
     val names = File("w:/download/find.txt").readLines()
+//    names.addAll(names)
     val directory = File("w:/download/directory.txt").readLines().map {
         val (number, name) = it.split(" ", limit = 2)
         name to number
     }
+    var startTestTimestamp = 0L
+    var sortingTimeStamp = 0L
+    var searchingTimeStamp = 0L
+    var count = 0
 
     println("Start searching (linear search)...")
     val start = System.currentTimeMillis()
-    var count = linearTest(names, directory)
+    count = searchTest(names, directory, ::linearSearch)
     val elapsed = System.currentTimeMillis() - start
     println("Found $count / ${names.size} entries. Time taken: ${formatElapsedTime(elapsed)}")
 
+    println()
     println("Start searching (bubble sort + jump search)...")
     val sortedDirectory = mutableListOf<Pair<String, String>>()
-    val startBubbleTestTimestamp = System.currentTimeMillis()
-    val searchingTimeStamp: Long
-    val res = bubbleSort(directory, sortedDirectory, start, elapsed)
-    val sortingTimeStamp = System.currentTimeMillis()
+    startTestTimestamp = System.currentTimeMillis()
+    var res = bubbleSort(directory, sortedDirectory, start, elapsed)
+    sortingTimeStamp = System.currentTimeMillis()
     if (res) {
-        count = jumpSearchTest(names, sortedDirectory)
+        count = searchTest(names, sortedDirectory, ::jumpSearch)
         searchingTimeStamp = System.currentTimeMillis()
     } else {
-        count = linearTest(names, directory)
+        count = searchTest(names, directory, ::linearSearch)
         searchingTimeStamp = System.currentTimeMillis()
     }
-    println("Found $count / ${names.size} entries. Time taken: ${formatElapsedTime(searchingTimeStamp - startBubbleTestTimestamp)}")
-    println("Sorting time: ${formatElapsedTime(sortingTimeStamp - startBubbleTestTimestamp)} - STOPPED, moved to linear search")
+    println("Found $count / ${names.size} entries. Time taken: ${formatElapsedTime(searchingTimeStamp - startTestTimestamp)}")
+    println("Sorting time: ${formatElapsedTime(sortingTimeStamp - startTestTimestamp)}" + if (!res) " - STOPPED, moved to linear search" else "")
+    println("Searching time: ${formatElapsedTime(searchingTimeStamp - sortingTimeStamp)}")
+
+    sortedDirectory.clear()
+    println()
+    println("Start searching (quick sort + binary search)...")
+    startTestTimestamp = System.currentTimeMillis()
+    res = quickSort(directory, sortedDirectory, start, elapsed)
+    sortingTimeStamp = System.currentTimeMillis()
+    if (res) {
+        count = searchTest(names, sortedDirectory, ::binarySearch)
+        searchingTimeStamp = System.currentTimeMillis()
+    } else {
+        count = searchTest(names, directory, ::linearSearch)
+        searchingTimeStamp = System.currentTimeMillis()
+    }
+    println("Found $count / ${names.size} entries. Time taken: ${formatElapsedTime(searchingTimeStamp - startTestTimestamp)}")
+    println("Sorting time: ${formatElapsedTime(sortingTimeStamp - startTestTimestamp)}" + if (!res) " - STOPPED, moved to linear search" else "")
+    println("Searching time: ${formatElapsedTime(searchingTimeStamp - sortingTimeStamp)}")
+
+    println()
+    println("Start searching (hash table)...")
+    startTestTimestamp = System.currentTimeMillis()
+    val ht = HashTable.create(directory.map { it.first })
+    sortingTimeStamp = System.currentTimeMillis()
+    // { (e1, e2) -> e1.first == e2.first }
+    count = searchHTTest(names, ht) // , { (e1, e2) -> { e1.first == e2.first } }
+    searchingTimeStamp = System.currentTimeMillis()
+    println("Found $count / ${names.size} entries. Time taken: ${formatElapsedTime(searchingTimeStamp - startTestTimestamp)}")
+    println("Creating time: ${formatElapsedTime(sortingTimeStamp - startTestTimestamp)}")
     println("Searching time: ${formatElapsedTime(searchingTimeStamp - sortingTimeStamp)}")
 }
 
-fun jumpSearchTest(names: List<String>, directory: MutableList<Pair<String, String>>): Int {
+fun searchHTTest(names: List<String>,
+                 hashTable: HashTable<String>): Int {
+    // , comparator: (Pair<String, String>, Pair<String, String>) -> Boolean
     var count = 0
-
     for (name in names) {
-        if (jumpSearch(name, directory)) {
+        if (hashTable.find(name, { e1, e2 -> e1 == e2 })) {
             count++
         }
     }
     return count
 }
 
-fun jumpSearch(name: String, directory: MutableList<Pair<String, String>>): Boolean {
+fun searchTest(names: List<String>, directory: List<Pair<String, String>>, algorithm: (String, List<Pair<String, String>>) -> Boolean): Int {
+    var count = 0
+    for (name in names) {
+        if (algorithm(name, directory)) {
+            count++
+        }
+    }
+    return count
+}
+
+//fun hashTableSearch(name, directory: List<Pair<String, String>>)
+
+fun quickSort(list: List<Pair<String, String>>, sortedList: MutableList<Pair<String, String>>, start: Long, elapsed: Long): Boolean {
+    sortedList.addAll(list)
+    qs(sortedList, 0, sortedList.lastIndex)
+    return true
+}
+
+fun qs(list: MutableList<Pair<String, String>>, low: Int, high: Int) {
+    if (low < high) {
+        val p = partition(list, low, high)
+        qs(list, low, p - 1)
+        qs(list, p + 1, high)
+    }
+}
+
+fun partition(list: MutableList<Pair<String, String>>, low: Int, high: Int): Int {
+    val pivot = list[high].first
+    var i = low
+    for (j in low until high) {
+        if (list[j].first <= pivot) {
+            list[i] = list[j].also { list[j] = list[i] }
+            i++
+        }
+    }
+    list[i] = list[high].also { list[high] = list[i] }
+    return i
+}
+
+fun jumpSearch(name: String, directory: List<Pair<String, String>>): Boolean {
     val size = directory.size
     val blockSize = kotlin.math.floor(kotlin.math.sqrt(size.toDouble())).toInt()
 
@@ -72,27 +146,34 @@ fun jumpSearch(name: String, directory: MutableList<Pair<String, String>>): Bool
     return false
 }
 
-private fun linearTest(names: List<String>, directory: List<Pair<String, String>>): Int {
-    var count = 0
-    for (name in names) {
-        if (linearSearch(name, directory).isNotEmpty()) {
-            count++
-        }
-    }
-    return count
-}
-
 private fun formatElapsedTime(milliseconds: Long): String {
     return String.format(String.format("%1\$tM min. %1\$tS sec. %1\$tL ms.", milliseconds))
 }
 
-fun linearSearch(name: String, directory: List<Pair<String, String>>): String {
+fun linearSearch(name: String, directory: List<Pair<String, String>>): Boolean {
     for (n in directory) {
         if (n.first == name) {
-            return n.second
+            return true
         }
     }
-    return ""
+    return false
+}
+
+fun binarySearch(name: String, directory: List<Pair<String, String>>): Boolean {
+    var left = 0
+    var right = directory.lastIndex
+
+    while (left <= right) {
+        val mid = (left + right) / 2
+        if (directory[mid].first < name) {
+            left = mid + 1
+        } else if (directory[mid].first > name) {
+            right = mid - 1
+        } else {
+            return true
+        }
+    }
+    return false
 }
 
 fun bubbleSort(list: List<Pair<String, String>>,
